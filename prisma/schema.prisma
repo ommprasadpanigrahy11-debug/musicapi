@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleName {
+  USER
+  PREMIUM
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String
+  role         RoleName @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+  sessions     Session[]
+  devices      Device[]
+  playlists    Playlist[]
+  likes        Like[]
+  follows      Follow[] @relation("follower")
+  followedBy   Follow[] @relation("following")
+  playHistory  PlayHistory[]
+  subscription Subscription?
+  spotifyConnection SpotifyConnection?
+  auditLogs    AuditLog[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+  @@index([userId])
+}
+
+model Device {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  lastSeen  DateTime @default(now())
+  @@index([userId])
+}
+
+model Artist {
+  id          String   @id @default(cuid())
+  name        String
+  bio         String?
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  albums      Album[]
+  tracks      Track[]
+}
+
+model Album {
+  id          String   @id @default(cuid())
+  title       String
+  artistId    String
+  artist      Artist   @relation(fields: [artistId], references: [id])
+  releaseDate DateTime?
+  coverUrl    String?
+  tracks      Track[]
+  @@index([artistId])
+}
+
+model Track {
+  id          String   @id @default(cuid())
+  title       String
+  artistId    String
+  artist      Artist   @relation(fields: [artistId], references: [id])
+  albumId     String?
+  album       Album?   @relation(fields: [albumId], references: [id])
+  durationSec Int
+  bitrate     Int
+  audioUrl    String
+  license     String
+  attribution String
+  createdAt   DateTime @default(now())
+  deletedAt   DateTime?
+  playlistTracks PlaylistTrack[]
+  likes       Like[]
+  playHistory PlayHistory[]
+  @@index([artistId])
+  @@index([albumId])
+}
+
+model Playlist {
+  id          String   @id @default(cuid())
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  isPublic    Boolean  @default(false)
+  isCollaborative Boolean @default(false)
+  coverUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  tracks      PlaylistTrack[]
+  @@index([ownerId])
+}
+
+model PlaylistTrack {
+  id         String   @id @default(cuid())
+  playlistId String
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  trackId    String
+  track      Track    @relation(fields: [trackId], references: [id])
+  position   Int
+  addedAt    DateTime @default(now())
+  @@unique([playlistId, position])
+  @@index([playlistId])
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trackId   String
+  track     Track    @relation(fields: [trackId], references: [id])
+  createdAt DateTime @default(now())
+  @@unique([userId, trackId])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  follower    User     @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  @@unique([followerId, followingId])
+}
+
+model PlayHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trackId   String
+  track     Track    @relation(fields: [trackId], references: [id])
+  playedAt  DateTime @default(now())
+  position  Int      @default(0)
+  @@index([userId, playedAt])
+}
+
+model Download {
+  id         String   @id @default(cuid())
+  userId     String
+  trackId    String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  @@index([userId])
+}
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tier      String
+  status    String
+  renewsAt  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Podcast {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  feedUrl     String
+  imageUrl    String?
+  episodes    Episode[]
+  createdAt   DateTime @default(now())
+}
+
+model Episode {
+  id          String   @id @default(cuid())
+  podcastId   String
+  podcast     Podcast  @relation(fields: [podcastId], references: [id], onDelete: Cascade)
+  title       String
+  audioUrl    String
+  publishedAt DateTime?
+  durationSec Int?
+  @@index([podcastId])
+}
+
+model TrackRef {
+  id               String   @id @default(cuid())
+  provider         String
+  providerTrackId  String
+  title            String
+  artists          String[]
+  album            String?
+  durationMs       Int?
+  artworkUrl       String?
+  sourceUrl        String
+  license          String?
+  lastCheckedAt    DateTime @default(now())
+  createdAt        DateTime @default(now())
+  @@unique([provider, providerTrackId])
+  @@index([provider])
+}
+
+model SpotifyConnection {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  encryptedRefreshToken String
+  scopes               String
+  expiresAt            DateTime?
+  premium              Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+}
